@@ -8,12 +8,57 @@ from datetime import datetime
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="IA de Carreira - Luana", layout="wide")
 
-# --- CSS PARA DEIXAR BONITO (Opcional, mas já dá um visual) ---
+# --- CSS PARA VISUAL PROFISSIONAL (CORRIGIDO) ---
 st.markdown("""
 <style>
-    .stApp { background-color: #f8f9fa; }
-    h1 { color: #2c3e50; }
-    .stButton>button { background-color: #4CAF50; color: white; border-radius: 8px; width: 100%; }
+    /* Força o fundo a ser cinza bem clarinho (Profissional) */
+    .stApp {
+        background-color: #f4f6f9;
+        color: #262730; /* Garante que o texto seja ESCURO */
+    }
+    
+    /* Estiliza os títulos */
+    h1, h2, h3 {
+        color: #0e1117 !important; /* Preto quase absoluto */
+        font-family: 'Helvetica Neue', sans-serif;
+    }
+    
+    /* Estiliza os botões para um Roxo/Azul moderno */
+    .stButton > button {
+        background-color: #4b49ac;
+        color: white !important;
+        border-radius: 8px;
+        border: none;
+        padding: 0.5rem 1rem;
+        font-weight: bold;
+        transition: all 0.3s ease;
+    }
+    .stButton > button:hover {
+        background-color: #3f3d91;
+        transform: translateY(-2px);
+    }
+    
+    /* Melhora as caixas de texto e upload para não ficarem sumidas */
+    .stTextArea textarea {
+        background-color: #ffffff !important;
+        color: #262730 !important;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+    }
+    
+    /* Borda e fundo da área de upload */
+    [data-testid="stFileUploader"] {
+        background-color: #ffffff;
+        border: 1px dashed #4b49ac;
+        border-radius: 8px;
+        padding: 1rem;
+    }
+    
+    /* Ajusta mensagens de sucesso/erro */
+    .stToast {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -52,7 +97,7 @@ def extrair_texto_pdf(arquivo):
     return texto
 
 def chamar_ia(prompt_sistema, prompt_usuario):
-    # --- MODELO CORRIGIDO BASEADO NO SEU DIAGNÓSTICO ---
+    # --- MODELO CORRIGIDO (GEMINI 2.5 FLASH) ---
     modelo = genai.GenerativeModel('gemini-2.5-flash')
     
     prompt_completo = f"{prompt_sistema}\n\n---\nDADOS PARA ANÁLISE:\n{prompt_usuario}"
