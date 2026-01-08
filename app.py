@@ -41,7 +41,7 @@ def extrair_texto_pdf(arquivo):
 
 def chamar_ia(prompt_sistema, prompt_usuario):
     # O Gemini junta sistema e usuario de forma diferente, mas vamos simplificar
-    modelo = genai.GenerativeModel('gemini-1.5-flash') # Modelo rápido e grátis
+    modelo = genai.GenerativeModel('gemini-pro') # Modelo rápido e grátis
     
     prompt_completo = f"{prompt_sistema}\n\n---\nDADOS DO USUÁRIO:\n{prompt_usuario}"
     
@@ -96,3 +96,4 @@ if st.session_state.analise_feita:
             st.write(final)
             salvar_no_sheets(st.session_state.vaga_original, "100", "Gerado Gemini")
             st.success("Pronto!")
+
