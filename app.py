@@ -126,4 +126,22 @@ if st.session_state.analise_feita:
     st.info("Gostou da análise? Quer gerar o documento final?")
     
     if st.button("✨ Gerar Currículo Otimizado ATS"):
-        with st.spinner("Reescrevendo seu
+        with st.spinner("Reescrevendo seu currículo com as palavras-chave..."):
+            try:
+                ctx = f"""
+                Contexto Anterior:
+                O currículo original era: {st.session_state.texto_cv}
+                A vaga era: {st.session_state.vaga_original}
+                Sua análise foi: {st.session_state.analise_resultado}
+                
+                Ação:
+                {OPTIMIZATION_INSTRUCTION}
+                """
+                final = chamar_ia(SYSTEM_PROMPT, ctx)
+                st.write(final)
+                
+                salvar_no_sheets(st.session_state.vaga_original, "100", "Gerado CV Novo")
+                st.success("Currículo Gerado! Copie o texto acima.")
+                st.balloons()
+            except Exception as e:
+                st.error(f"Erro ao gerar: {e}")
