@@ -8,56 +8,75 @@ from datetime import datetime
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="IA de Carreira - Luana", layout="wide")
 
-# --- CSS PARA VISUAL PROFISSIONAL (CORRIGIDO) ---
+# --- CSS: TEMA ESCURO MODERNO ---
 st.markdown("""
 <style>
-    /* Força o fundo a ser cinza bem clarinho (Profissional) */
+    /* 1. Fundo Geral da Página (Cinza Chumbo Escuro) */
     .stApp {
-        background-color: #f4f6f9;
-        color: #262730; /* Garante que o texto seja ESCURO */
+        background-color: #0E1117;
+        color: #FAFAFA;
     }
-    
-    /* Estiliza os títulos */
+
+    /* 2. Títulos e Textos Principais */
     h1, h2, h3 {
-        color: #0e1117 !important; /* Preto quase absoluto */
+        color: #FAFAFA !important;
         font-family: 'Helvetica Neue', sans-serif;
+        font-weight: 700;
     }
-    
-    /* Estiliza os botões para um Roxo/Azul moderno */
-    .stButton > button {
-        background-color: #4b49ac;
-        color: white !important;
-        border-radius: 8px;
-        border: none;
-        padding: 0.5rem 1rem;
-        font-weight: bold;
-        transition: all 0.3s ease;
+    p, label {
+        color: #E0E0E0 !important; /* Cinza claro para textos comuns */
     }
-    .stButton > button:hover {
-        background-color: #3f3d91;
-        transform: translateY(-2px);
-    }
-    
-    /* Melhora as caixas de texto e upload para não ficarem sumidas */
+
+    /* 3. Área de Texto (Input da Vaga) */
     .stTextArea textarea {
-        background-color: #ffffff !important;
-        color: #262730 !important;
-        border: 1px solid #d1d5db;
+        background-color: #262730 !important; /* Fundo mais claro que a página */
+        color: #FFFFFF !important;
+        border: 1px solid #4A4A4A;
         border-radius: 8px;
     }
-    
-    /* Borda e fundo da área de upload */
+    /* Cor do rótulo da área de texto */
+    .stTextArea label {
+        color: #FAFAFA !important; 
+    }
+
+    /* 4. Área de Upload (Arquivo) */
     [data-testid="stFileUploader"] {
-        background-color: #ffffff;
-        border: 1px dashed #4b49ac;
+        background-color: #262730;
+        border: 1px dashed #7C3AED; /* Borda Roxa Neon */
         border-radius: 8px;
         padding: 1rem;
     }
+    [data-testid="stFileUploader"] section {
+        background-color: #262730; /* Garante que dentro fique escuro */
+    }
     
-    /* Ajusta mensagens de sucesso/erro */
+    /* 5. Botões (Roxo Vibrante para destaque) */
+    .stButton > button {
+        background-color: #7C3AED; /* Roxo */
+        color: white !important;
+        border-radius: 8px;
+        border: none;
+        padding: 0.6rem 1.2rem;
+        font-weight: bold;
+        transition: all 0.3s ease;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .stButton > button:hover {
+        background-color: #6D28D9; /* Roxo mais escuro no mouse over */
+        box-shadow: 0px 4px 15px rgba(124, 58, 237, 0.4); /* Brilho */
+        transform: translateY(-2px);
+    }
+
+    /* 6. Mensagens de Sucesso e Aviso */
     .stToast {
-        background-color: #ffffff !important;
-        color: #000000 !important;
+        background-color: #262730 !important;
+        color: white !important;
+        border: 1px solid #333;
+    }
+    .stAlert {
+        background-color: #262730;
+        color: white;
     }
 </style>
 """, unsafe_allow_html=True)
