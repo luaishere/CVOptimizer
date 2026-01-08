@@ -1,3 +1,5 @@
 streamlit
 openai
 pypdf2
+gspread
+google-auth
