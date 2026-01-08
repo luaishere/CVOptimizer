@@ -1,47 +1,37 @@
 import streamlit as st
 import PyPDF2
-from openai import OpenAI
+import google.generativeai as genai
 import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="IA de Carreira - Luana", layout="wide")
+st.title("📄 Analisador & Otimizador (Versão Gemini)")
 
-st.title("📄 Analisador & Otimizador de Currículos")
+# --- CONFIGURAÇÃO DA IA (GEMINI) ---
+try:
+    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+except Exception as e:
+    st.error("Erro na chave do Gemini. Verifique os Secrets.")
 
 # --- CONEXÃO COM GOOGLE SHEETS ---
 def salvar_no_sheets(vaga, nota, status):
-    """Salva os dados na planilha do Google"""
     try:
-        # Define o escopo de acesso (Drive e Sheets)
-        scopes = [
-            "https://www.googleapis.com/auth/spreadsheets",
-            "https://www.googleapis.com/auth/drive"
-        ]
-        
-        # Pega as credenciais do Cofre do Streamlit
-        credentials = Credentials.from_service_account_info(
-            st.secrets["gcp_service_account"],
-            scopes=scopes
-        )
-        
-        # Conecta
+        scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+        credentials = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scopes)
         gc = gspread.authorize(credentials)
-        
-        # Abre a planilha (TEM QUE SER O NOME EXATO QUE VOCÊ CRIOU)
         sh = gc.open("Banco de Curriculos") 
         worksheet = sh.sheet1
-        
-        # Adiciona a linha
         dados = [str(datetime.now()), vaga[:50], status, nota]
         worksheet.append_row(dados)
         return True
     except Exception as e:
-        st.error(f"Erro ao salvar no Sheets: {e}")
+        # Se der erro no sheets, não para o app, só avisa
+        print(f"Erro sheets: {e}")
         return False
 
-# --- FUNÇÕES UTILITÁRIAS ---
+# --- FUNÇÕES ---
 def extrair_texto_pdf(arquivo):
     pdf_reader = PyPDF2.PdfReader(arquivo)
     texto = ""
@@ -50,45 +40,26 @@ def extrair_texto_pdf(arquivo):
     return texto
 
 def chamar_ia(prompt_sistema, prompt_usuario):
-    # Pega a chave do Cofre automaticamente
-    api_key = st.secrets["OPENAI_API_KEY"]
-    client = OpenAI(api_key=api_key)
+    # O Gemini junta sistema e usuario de forma diferente, mas vamos simplificar
+    modelo = genai.GenerativeModel('gemini-1.5-flash') # Modelo rápido e grátis
     
-    response = client.chat.completions.create(
-        model="gpt-4o", 
-        messages=[
-            {"role": "system", "content": prompt_sistema},
-            {"role": "user", "content": prompt_usuario}
-        ],
-        temperature=0.7
-    )
-    return response.choices[0].message.content
+    prompt_completo = f"{prompt_sistema}\n\n---\nDADOS DO USUÁRIO:\n{prompt_usuario}"
+    
+    response = modelo.generate_content(prompt_completo)
+    return response.text
 
-# --- SEU PROMPT MESTRE ---
+# --- PROMPT ---
 SYSTEM_PROMPT = """
 Você é um Parceiro de Carreira e Recrutador Sênior. 
-Sua prioridade é ser empático, claro e direto (sem "robobês").
-Você nunca inventa dados que não existam no currículo.
-
-ESTRUTURA DA FASE 1 (ANÁLISE):
-Analise o currículo e a vaga fornecidos. Retorne APENAS a Fase 1:
-1. Pontos de Aderência (O que deu "match"): Cite experiências específicas.
-2. Pontos de Atenção (Onde o sapato aperta): Seja sincero sobre gaps.
-3. Minha Nota: 0 a 100% (Baseada em percepção técnica).
-4. Minha Sugestão Sincera: Aplicar? Cautela? Não é o momento?
-5. A Pergunta: "Dito isso, quer que eu faça a mágica e gere a versão otimizada para ATS mesmo assim?"
-
-IMPORTANTE: Considere o tempo de casa e não seja genérico.
+Analise o currículo e a vaga. Retorne APENAS a Fase 1:
+1. Pontos de Aderência.
+2. Pontos de Atenção.
+3. Minha Nota: (0 a 100).
+4. Sugestão Sincera.
+5. Pergunta final: "Quer gerar o otimizado?"
 """
 
-OPTIMIZATION_INSTRUCTION = """
-O usuário respondeu "SIM". Agora execute a FASE 2:
-Gere o currículo focado em passar no ATS.
-- Integre palavras-chave da vaga.
-- Resumo Profissional focado na senioridade da vaga.
-- Experiência com verbos fortes (Liderou, Criou, Estruturou) e resultados no topo.
-- Formatação limpa (Markdown), pronta para copiar.
-"""
+OPTIMIZATION_INSTRUCTION = "Gere o currículo otimizado para ATS (Fase 2)."
 
 # --- INTERFACE ---
 col1, col2 = st.columns(2)
@@ -100,44 +71,28 @@ with col2:
 if "analise_feita" not in st.session_state:
     st.session_state.analise_feita = False
 
-# BOTÃO 1: ANALISAR
-if st.button("🔍 Analisar"):
+if st.button("🔍 Analisar (Grátis)"):
     if uploaded_file and vaga_text:
-        with st.spinner("Analisando..."):
+        with st.spinner("O Gemini está analisando..."):
             texto_cv = extrair_texto_pdf(uploaded_file)
             st.session_state.texto_cv = texto_cv
             st.session_state.vaga_original = vaga_text
             
-            # Monta o prompt
-            msg = f"CV: {texto_cv}\n\nVaga: {vaga_text}"
-            resultado = chamar_ia(SYSTEM_PROMPT, msg)
+            resultado = chamar_ia(SYSTEM_PROMPT, f"CV: {texto_cv}\nVaga: {vaga_text}")
             
             st.session_state.analise_resultado = resultado
             st.session_state.analise_feita = True
             
-            # Salva no Sheets
-            salvar_no_sheets(vaga_text, "N/A", "Analisado - Fase 1")
-            st.toast("Análise salva no banco de dados!")
+            salvar_no_sheets(vaga_text, "N/A", "Analisado Gemini")
+            st.toast("Análise feita!")
 
-# EXIBIÇÃO E BOTÃO 2
 if st.session_state.analise_feita:
     st.write(st.session_state.analise_resultado)
     
     if st.button("✨ Gerar Currículo Otimizado"):
-        with st.spinner("Escrevendo..."):
-            ctx = f"""
-            Contexto Anterior:
-            O currículo original era: {st.session_state.texto_cv}
-            A vaga era: {st.session_state.vaga_original}
-            Sua análise foi: {st.session_state.analise_resultado}
-            
-            Ação:
-            {OPTIMIZATION_INSTRUCTION}
-            """
+        with st.spinner("O Gemini está escrevendo..."):
+            ctx = f"CV Original: {st.session_state.texto_cv}\nAnálise anterior: {st.session_state.analise_resultado}\nTarefa: {OPTIMIZATION_INSTRUCTION}"
             final = chamar_ia(SYSTEM_PROMPT, ctx)
             st.write(final)
-            
-            # Salva a segunda etapa no Sheets
-            salvar_no_sheets(st.session_state.vaga_original, "100", "Gerado CV Novo")
-            st.success("Salvo e Gerado!")
-
+            salvar_no_sheets(st.session_state.vaga_original, "100", "Gerado Gemini")
+            st.success("Pronto!")
