@@ -43,10 +43,10 @@ def extrair_texto_pdf(arquivo):
     return texto
 
 def chamar_ia(prompt_sistema, prompt_usuario):
-    # Usando o modelo mais recente e estável
-    modelo = genai.GenerativeModel('gemini-1.5-flash')
+    # --- MUDANÇA AQUI: Usando o modelo clássico que nunca falha ---
+    modelo = genai.GenerativeModel('gemini-pro') 
     
-    # O Gemini prefere receber o prompt sistema na configuração ou concatenado
+    # O Gemini Pro antigo prefere prompts simples, sem separação complexa
     prompt_completo = f"{prompt_sistema}\n\n---\nANÁLISE O SEGUINTE:\n{prompt_usuario}"
     
     # Geração de resposta
@@ -111,3 +111,4 @@ if st.session_state.analise_feita:
                 st.success("Currículo Otimizado Gerado!")
             except Exception as e:
                 st.error(f"Erro na geração final: {e}")
+
