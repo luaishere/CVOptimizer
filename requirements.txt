@@ -3,3 +3,4 @@ google-generativeai>=0.8.0
 pypdf2
 gspread
 google-auth
+pandas
