@@ -7,13 +7,16 @@ from datetime import datetime
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="IA de Carreira - Luana", layout="wide")
-st.title("📄 Analisador & Otimizador (Versão Gemini)")
+st.title("📄 Analisador & Otimizador (Versão Gemini Flash)")
 
 # --- CONFIGURAÇÃO DA IA (GEMINI) ---
+# Tenta pegar a chave. Se não conseguir, para tudo.
 try:
-    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+    chave_gemini = st.secrets["GEMINI_API_KEY"]
+    genai.configure(api_key=chave_gemini)
 except Exception as e:
-    st.error("Erro na chave do Gemini. Verifique os Secrets.")
+    st.error("❌ Erro grave: Não encontrei a GEMINI_API_KEY nos Secrets.")
+    st.stop()
 
 # --- CONEXÃO COM GOOGLE SHEETS ---
 def salvar_no_sheets(vaga, nota, status):
@@ -27,8 +30,8 @@ def salvar_no_sheets(vaga, nota, status):
         worksheet.append_row(dados)
         return True
     except Exception as e:
-        # Se der erro no sheets, não para o app, só avisa
-        print(f"Erro sheets: {e}")
+        # Se der erro no sheets, apenas avisa no console do servidor, não trava o usuário
+        print(f"Erro ao salvar no Sheets: {e}")
         return False
 
 # --- FUNÇÕES ---
@@ -40,11 +43,13 @@ def extrair_texto_pdf(arquivo):
     return texto
 
 def chamar_ia(prompt_sistema, prompt_usuario):
-    # O Gemini junta sistema e usuario de forma diferente, mas vamos simplificar
-    modelo = genai.GenerativeModel('gemini-pro') # Modelo rápido e grátis
+    # Usando o modelo mais recente e estável
+    modelo = genai.GenerativeModel('gemini-1.5-flash')
     
-    prompt_completo = f"{prompt_sistema}\n\n---\nDADOS DO USUÁRIO:\n{prompt_usuario}"
+    # O Gemini prefere receber o prompt sistema na configuração ou concatenado
+    prompt_completo = f"{prompt_sistema}\n\n---\nANÁLISE O SEGUINTE:\n{prompt_usuario}"
     
+    # Geração de resposta
     response = modelo.generate_content(prompt_completo)
     return response.text
 
@@ -59,7 +64,7 @@ Analise o currículo e a vaga. Retorne APENAS a Fase 1:
 5. Pergunta final: "Quer gerar o otimizado?"
 """
 
-OPTIMIZATION_INSTRUCTION = "Gere o currículo otimizado para ATS (Fase 2)."
+OPTIMIZATION_INSTRUCTION = "Gere o currículo otimizado para ATS (Fase 2) em formato Markdown limpo."
 
 # --- INTERFACE ---
 col1, col2 = st.columns(2)
@@ -71,29 +76,38 @@ with col2:
 if "analise_feita" not in st.session_state:
     st.session_state.analise_feita = False
 
+# BOTÃO 1
 if st.button("🔍 Analisar (Grátis)"):
     if uploaded_file and vaga_text:
         with st.spinner("O Gemini está analisando..."):
-            texto_cv = extrair_texto_pdf(uploaded_file)
-            st.session_state.texto_cv = texto_cv
-            st.session_state.vaga_original = vaga_text
-            
-            resultado = chamar_ia(SYSTEM_PROMPT, f"CV: {texto_cv}\nVaga: {vaga_text}")
-            
-            st.session_state.analise_resultado = resultado
-            st.session_state.analise_feita = True
-            
-            salvar_no_sheets(vaga_text, "N/A", "Analisado Gemini")
-            st.toast("Análise feita!")
+            try:
+                texto_cv = extrair_texto_pdf(uploaded_file)
+                st.session_state.texto_cv = texto_cv
+                st.session_state.vaga_original = vaga_text
+                
+                resultado = chamar_ia(SYSTEM_PROMPT, f"CV: {texto_cv}\nVaga: {vaga_text}")
+                
+                st.session_state.analise_resultado = resultado
+                st.session_state.analise_feita = True
+                
+                salvar_no_sheets(vaga_text, "N/A", "Analisado Gemini")
+                st.toast("Análise feita com sucesso!")
+            except Exception as e:
+                st.error(f"Erro ao chamar a IA: {e}")
 
+# EXIBIÇÃO E BOTÃO 2
 if st.session_state.analise_feita:
+    st.markdown("### Resultado:")
     st.write(st.session_state.analise_resultado)
     
+    st.markdown("---")
     if st.button("✨ Gerar Currículo Otimizado"):
-        with st.spinner("O Gemini está escrevendo..."):
-            ctx = f"CV Original: {st.session_state.texto_cv}\nAnálise anterior: {st.session_state.analise_resultado}\nTarefa: {OPTIMIZATION_INSTRUCTION}"
-            final = chamar_ia(SYSTEM_PROMPT, ctx)
-            st.write(final)
-            salvar_no_sheets(st.session_state.vaga_original, "100", "Gerado Gemini")
-            st.success("Pronto!")
-
+        with st.spinner("O Gemini está reescrevendo seu CV..."):
+            try:
+                ctx = f"CV Original: {st.session_state.texto_cv}\nAnálise anterior: {st.session_state.analise_resultado}\nTarefa: {OPTIMIZATION_INSTRUCTION}"
+                final = chamar_ia(SYSTEM_PROMPT, ctx)
+                st.write(final)
+                salvar_no_sheets(st.session_state.vaga_original, "100", "Gerado Gemini")
+                st.success("Currículo Otimizado Gerado!")
+            except Exception as e:
+                st.error(f"Erro na geração final: {e}")
