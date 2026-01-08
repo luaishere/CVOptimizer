@@ -9,98 +9,70 @@ from datetime import datetime
 
 # ---------------- CONFIGURAÇÃO DA PÁGINA ----------------
 st.set_page_config(
-    page_title="Currículo vs Vaga - Luana",
+    page_title="CV Optimizer",
     page_icon="🎯",
     layout="wide"
 )
 
-# ---------------- CSS (VISUAL AMIGÁVEL & MODERNO) ----------------
+# ---------------- CSS (VISUAL) ----------------
 st.markdown("""
 <style>
-    /* Fundo Escuro Confortável */
     .stApp { background-color: #0E1117; color: #E0E0E0; }
-    
-    /* Títulos com destaque */
     h1 { color: #A78BFA !important; font-family: 'Helvetica Neue', sans-serif; font-weight: 800; }
     h2, h3 { color: #F3F4F6 !important; }
     
-    /* Caixa de Explicação (Hero Section) */
     .hero-box {
         background: linear-gradient(90deg, #1F2937 0%, #111827 100%);
         padding: 30px;
         border-radius: 15px;
-        border-left: 6px solid #8B5CF6; /* Roxo suave */
+        border-left: 6px solid #8B5CF6;
         margin-bottom: 30px;
         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
     }
     .hero-box h3 { color: #C4B5FD !important; margin-top: 0; }
-    .hero-box p { font-size: 1.1rem; line-height: 1.6; }
-
-    /* Campos de Entrada */
+    
     .stTextInput input, .stTextArea textarea { 
-        background-color: #1F2937 !important; 
-        color: #FFFFFF !important; 
-        border: 1px solid #374151; 
-        border-radius: 8px;
+        background-color: #1F2937 !important; color: #FFFFFF !important; border: 1px solid #374151; border-radius: 8px;
     }
     
-    /* Upload */
     [data-testid="stFileUploader"] {
-        background-color: #1F2937;
-        border: 2px dashed #6D28D9;
-        padding: 20px;
-        border-radius: 12px;
-        text-align: center;
+        background-color: #1F2937; border: 2px dashed #6D28D9; padding: 20px; border-radius: 12px; text-align: center;
     }
 
-    /* Botões Principais */
     .stButton > button { 
         background: linear-gradient(90deg, #7C3AED 0%, #6D28D9 100%);
-        color: white !important; 
-        width: 100%;
-        font-size: 18px;
-        padding: 1rem;
-        border-radius: 12px; 
-        border: none; 
-        font-weight: 700; 
+        color: white !important; width: 100%; font-size: 20px; padding: 1rem;
+        border-radius: 12px; border: none; font-weight: 700; 
         box-shadow: 0 4px 14px 0 rgba(124, 58, 237, 0.39);
         transition: all 0.2s ease-in-out;
     }
-    .stButton > button:hover { 
-        transform: scale(1.02);
-        box-shadow: 0 6px 20px rgba(124, 58, 237, 0.23);
-    }
+    .stButton > button:hover { transform: scale(1.02); }
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------- HEADER & COPYWRITING ----------------
-st.title("🎯 Seu Currículo passa no filtro?")
-st.caption("Ferramenta gratuita para profissionais em busca de recolocação.")
+# ---------------- HEADER ----------------
+st.title("Otimizador de Currículo Express")
+st.caption("Em um clique: Diagnóstico completo + Nova versão do seu CV.")
 
 st.markdown("""
 <div class="hero-box">
-    <h3>Não deixe um robô eliminar sua chance</h3>
+    <h3>Como funciona a Mágica 1-Clique:</h3>
     <p>
-        Hoje em dia, a maioria das empresas usa sistemas automáticos (IA) para ler currículos antes mesmo de um humano ver. 
-        Se as palavras certas não estiverem lá, você é reprovado automaticamente.
-    </p>
-    <p>
-        <b>Como te ajudamos:</b>
-        <br>1. Nossa IA lê seu currículo e a vaga como se fosse o recrutador.
-        <br>2. Te mostramos exatamente o que está faltando.
-        <br>3. Criamos uma nova versão do seu currículo ajustada para passar nessa vaga específica.
+        Nossa IA lê seu perfil e a vaga. Em alguns segundos, ela vai:
+        <br>1. 🕵️‍♀️ <b>Investigar</b> se você passa no filtro do robô recrutador.
+        <br>2. ✨ <b>Reescrever</b> seu currículo automaticamente com as palavras-chave certas.
     </p>
 </div>
 """, unsafe_allow_html=True)
 
-# ---------------- CONFIGURAÇÃO TÉCNICA ----------------
+# ---------------- CONFIG ----------------
 try:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 except Exception as e:
-    st.error(f"Erro de conexão. Avise o administrador.")
+    st.error("Erro de conexão. Verifique a chave de API.")
     st.stop()
 
-# ---------------- FUNÇÕES DE BACKEND ----------------
+# ---------------- FUNÇÕES ----------------
 def extrair_texto_pdf(arquivo):
     reader = PyPDF2.PdfReader(arquivo)
     texto = ""
@@ -112,24 +84,23 @@ def extrair_nota(texto):
     match = re.search(r'(?:Nota|Minha Nota):?\s*\*?(\d+)', texto, re.IGNORECASE)
     return int(match.group(1)) if match else 0
 
-def salvar_no_sheets(email, nota, vaga, cv_original, analise, cv_otimizado=""):
+def salvar_no_sheets(email, nota, resumo_candidato, resumo_vaga, resumo_otimizacao, analise, cv_novo):
     try:
         scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-        creds = Credentials.from_service_account_info(
-            st.secrets["gcp_service_account"], scopes=scopes
-        )
+        creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scopes)
         gc = gspread.authorize(creds)
         sh = gc.open("Banco de Curriculos")
         sheet = sh.sheet1
 
         dados = [
-            str(datetime.now()),
-            email,
-            f"{nota}%",
-            vaga,
-            cv_original,
-            analise,
-            cv_otimizado
+            str(datetime.now()), 
+            email, 
+            f"{nota}%", 
+            resumo_candidato, # Quem é a pessoa (Ex: Analista Jr)
+            resumo_vaga,      # O que ela quer (Ex: Vaga Pleno Remota)
+            resumo_otimizacao,# O que mudamos (Ex: Foco em resultados)
+            analise,          # Texto completo da análise
+            cv_novo           # Texto completo do CV novo
         ]
         sheet.append_row(dados)
         return True
@@ -137,133 +108,120 @@ def salvar_no_sheets(email, nota, vaga, cv_original, analise, cv_otimizado=""):
         print(f"Erro ao salvar: {e}")
         return False
 
-def chamar_ia(prompt_sistema, dados):
-    # Usando o modelo 'latest' para evitar erros de limite
+def chamar_ia_completa(dados_cv, dados_vaga):
     model = genai.GenerativeModel("gemini-flash-latest")
-    prompt = f"{prompt_sistema}\n\n---\nINFORMAÇÕES:\n{dados}"
-    return model.generate_content(prompt).text
+    
+    # PROMPT COMANDO TRIPLO (Análise + Otimização + Resumo de Dados)
+    prompt_mestre = f"""
+    Atue como uma Especialista em Recolocação e ATS.
+    
+    TAREFA 1: ANÁLISE (Fale com o candidato)
+    1. **Onde você brilha ✨:** (Pontos fortes)
+    2. **Cuidado com isso ⚠️:** (Gaps e riscos)
+    3. **Minha Nota:** X% (0 a 100)
+    4. **Veredito:** (Resumo sincero)
 
-# ---------------- PROMPTS (PERSONALIDADE DA IA) ----------------
-# Aqui definimos o tom de voz da IA: Empática, Mentora, Encorajadora.
-SYSTEM_PROMPT = """
-Você é uma Mentora de Carreira experiente e empática, especializada em recolocação profissional.
-Seu objetivo é ajudar candidatos (júniors ou em transição) a passarem pelos filtros de IA dos recrutadores.
+    TAREFA 2: OTIMIZAÇÃO (Gere o documento)
+    Reescreva o currículo para passar nesta vaga.
+    - Use palavras-chave da vaga.
+    - Adicione Resumo Profissional estratégico.
+    
+    TAREFA 3: RESUMO DE DADOS (Para meu banco de dados interno)
+    Resuma em 1 frase curta cada item abaixo para eu salvar na planilha.
+    
+    IMPORTANTE: Separe as tarefas com os divisores exatos abaixo.
+    
+    ---DIVISOR_CV---
+    (Aqui entra o texto do Novo Currículo em Markdown)
+    
+    ---DIVISOR_DADOS---
+    CANDIDATO: (Resuma o perfil atual dele ex: "Marketing Jr em transição")
+    VAGA: (Resuma a vaga ex: "Analista Sr Presencial SP")
+    MUDANCA: (O que você fez ex: "Adicionei palavras-chave de dados e SQL")
+    
+    DADOS DE ENTRADA:
+    CV: {dados_cv}
+    VAGA: {dados_vaga}
+    """
+    
+    resposta = model.generate_content(prompt_mestre).text
+    return resposta
 
-Analise o currículo e a vaga. Fale diretamente com o candidato (use "você").
-Estrutura da resposta (use Markdown):
-
-1. **Onde você brilha ✨:** (Liste o que está ótimo e conecta com a vaga)
-2. **Cuidado com isso ⚠️:** (O que falta, gaps de palavras-chave ou erros que podem reprovar no sistema. Seja gentil mas honesta)
-3. **Minha Nota:** X% (Apenas o número de 0 a 100)
-4. **Veredito da Mentora:** (Vale a pena aplicar? O que precisa mudar urgente?)
-
-Seja clara, evite jargões complexos de RH sem explicar.
-"""
-
-OPTIMIZATION_PROMPT = """
-Atue como uma Especialista em Currículos para Sistemas ATS.
-Sua missão: Reescrever o currículo do candidato para aumentar a chance de entrevista nesta vaga específica.
-
-Regras:
-- Mantenha a veracidade (não invente experiências), mas mude a forma de escrever.
-- Use as palavras-chave exatas da descrição da vaga.
-- Use verbos de ação fortes (Liderei, Criei, Organizei).
-- Foco em resultados.
-- Adicione um breve Resumo Profissional no topo alinhado à vaga.
-
-Saída: Apenas o texto do currículo formatado, pronto para copiar.
-"""
-
-# ---------------- FORMULÁRIO ----------------
+# ---------------- INTERFACE ----------------
 col1, col2 = st.columns(2)
-
 with col1:
     st.subheader("1. Quem é você?")
-    email = st.text_input("Seu melhor e-mail", placeholder="ex: joao@gmail.com")
-    pdf = st.file_uploader("Seu Currículo (PDF)", type="pdf", help="Pode ser o currículo que você já usa.")
-
+    email = st.text_input("Seu e-mail", placeholder="ex: joao@email.com")
+    pdf = st.file_uploader("Seu Currículo (PDF)", type="pdf")
 with col2:
-    st.subheader("2. Qual a vaga dos sonhos?")
-    vaga = st.text_area("Descrição da Vaga", height=260, placeholder="Cole aqui tudo que estava escrito no anúncio da vaga (Requisitos, Responsabilidades, etc)...")
+    st.subheader("2. A Vaga Alvo")
+    vaga = st.text_area("Descrição da Vaga", height=260, placeholder="Cole a descrição completa aqui...")
 
 st.markdown("---")
-aceite = st.checkbox("Aceito compartilhar meus dados para gerar a análise e receber dicas de carreira futuramente.")
+aceite = st.checkbox("Aceito compartilhar dados para análise.")
 
-# ---------------- ESTADO ----------------
-if "resultado" not in st.session_state:
-    st.session_state.resultado = None
-
-# ---------------- BOTÃO 1 ----------------
-if st.button("🚀 Descobrir minhas chances"):
-    if not aceite:
-        st.warning("⚠️ Precisamos do seu aceite para prosseguir.")
-    elif not email or not pdf or not vaga:
-        st.warning("⚠️ Opa, faltou preencher alguma coisa acima!")
+# ---------------- BOTÃO MÁGICO ----------------
+if st.button("🚀 Gerar Diagnóstico + Novo Currículo"):
+    if not aceite or not email or not pdf or not vaga:
+        st.warning("⚠️ Preencha tudo acima para a mágica acontecer!")
     else:
-        with st.spinner("Lendo cada detalhe do seu perfil..."):
+        with st.spinner("🤖 A IA está lendo seu perfil e gerando os resumos..."):
             try:
                 texto_cv = extrair_texto_pdf(pdf)
                 
-                # IA Analisa
-                resposta = chamar_ia(SYSTEM_PROMPT, f"CURRÍCULO:\n{texto_cv}\n\nVAGA ALVO:\n{vaga}")
+                # Chamada Única
+                resposta_completa = chamar_ia_completa(texto_cv, vaga)
                 
-                st.session_state.resultado = resposta
-                st.session_state.texto_cv = texto_cv
-                st.session_state.vaga = vaga
-                st.session_state.email = email
-                
-                nota = extrair_nota(resposta)
-                salvar_no_sheets(email, nota, vaga, texto_cv, resposta, "")
-                
-            except Exception as e:
-                st.error(f"Erro técnico: {e}")
+                # LÓGICA DE SEPARAÇÃO (Parsing)
+                analise = ""
+                novo_cv = ""
+                resumo_candidato = "N/A"
+                resumo_vaga = "N/A"
+                resumo_mudanca = "N/A"
 
-# ---------------- RESULTADOS ----------------
-if st.session_state.resultado:
-    st.markdown("---")
-    st.subheader("📊 Seu Diagnóstico")
-    
-    nota = extrair_nota(st.session_state.resultado)
-    
-    # Visual da Nota
-    col_nota, col_texto = st.columns([1, 3])
-    with col_nota:
-        st.metric(label="Compatibilidade Atual", value=f"{nota}%")
-    with col_texto:
-        if nota > 75:
-            st.success("Muito bom! Você tem grandes chances, mas podemos refinar.")
-        elif nota > 50:
-            st.warning("Tem potencial, mas o robô pode te barrar. Vamos ajustar?")
-        else:
-            st.error("Atenção: Seu currículo atual pode não passar. Precisamos de uma reforma.")
+                # Divide nas 3 partes
+                if "---DIVISOR_CV---" in resposta_completa:
+                    partes = resposta_completa.split("---DIVISOR_CV---")
+                    analise = partes[0].strip()
+                    resto = partes[1]
+                    
+                    if "---DIVISOR_DADOS---" in resto:
+                        partes_finais = resto.split("---DIVISOR_DADOS---")
+                        novo_cv = partes_finais[0].strip()
+                        bloco_dados = partes_finais[1].strip()
+                        
+                        # Extrai os resumos linha a linha
+                        for linha in bloco_dados.split('\n'):
+                            if "CANDIDATO:" in linha: resumo_candidato = linha.replace("CANDIDATO:", "").strip()
+                            if "VAGA:" in linha: resumo_vaga = linha.replace("VAGA:", "").strip()
+                            if "MUDANCA:" in linha: resumo_mudanca = linha.replace("MUDANCA:", "").strip()
+                    else:
+                        novo_cv = resto.strip()
 
-    st.write(st.session_state.resultado)
-    
-    st.markdown("---")
-    st.info("💡 **Dica:** A IA pode reescrever seu currículo agora mesmo usando as palavras exatas que o robô quer ler.")
-    
-    if st.button("✨ Gerar Currículo Otimizado (Grátis)"):
-        with st.spinner("Reescrevendo seu currículo para passar na vaga..."):
-            try:
-                novo_cv = chamar_ia(
-                    OPTIMIZATION_PROMPT, 
-                    f"CV ORIGINAL:\n{st.session_state.texto_cv}\n\nDIAGNÓSTICO:\n{st.session_state.resultado}"
-                )
+                # Extrai nota
+                nota = extrair_nota(analise)
                 
-                st.subheader("📝 Sua Nova Versão")
-                st.caption("Copie o texto abaixo e cole no Word/Docs para salvar seu novo PDF.")
+                # Salva na planilha com os resumos inteligentes
+                salvar_no_sheets(email, nota, resumo_candidato, resumo_vaga, resumo_mudanca, analise, novo_cv)
+                
+                # ---------------- EXIBIÇÃO ----------------
+                
+                st.markdown("## 📊 Seu Diagnóstico")
+                col_n, col_t = st.columns([1, 4])
+                with col_n:
+                    st.metric("Compatibilidade", f"{nota}%")
+                with col_t:
+                    if nota > 70: st.success("Você está bem posicionado!")
+                    else: st.warning("Otimizamos seu perfil para aumentar essa chance.")
+                
+                st.write(analise)
+                
+                st.markdown("---")
+                st.markdown("## ✨ Sua Nova Versão Otimizada")
+                st.success("Pronto! Copie o código abaixo.")
                 st.code(novo_cv, language="markdown")
                 
-                salvar_no_sheets(
-                    st.session_state.email, 
-                    100, 
-                    st.session_state.vaga, 
-                    st.session_state.texto_cv, 
-                    st.session_state.resultado, 
-                    novo_cv
-                )
-                
                 st.balloons()
-                st.success("Prontinho! Sucesso na aplicação! 🍀")
+
             except Exception as e:
-                st.error(f"Erro ao gerar: {e}")
+                st.error(f"Erro técnico: {e}")
