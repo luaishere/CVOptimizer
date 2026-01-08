@@ -1,37 +1,61 @@
 import streamlit as st
 import PyPDF2
 from openai import OpenAI
-import os
+import gspread
+from google.oauth2.service_account import Credentials
+from datetime import datetime
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="IA de Carreira - Luana", layout="wide")
 
 st.title("📄 Analisador & Otimizador de Currículos")
-st.markdown("""
-Esta ferramenta atua como sua parceira de carreira. 
-Ela analisa a compatibilidade com a vaga e, se você quiser, reescreve o CV para passar nos robôs (ATS).
-""")
 
-# --- BARRA LATERAL (CONFIGURAÇÕES) ---
-with st.sidebar:
-    st.header("Configurações")
-    api_key = st.text_input("Insira sua API Key da OpenAI", type="password")
-    st.info("Para obter uma chave, vá em: platform.openai.com")
+# --- CONEXÃO COM GOOGLE SHEETS ---
+def salvar_no_sheets(vaga, nota, status):
+    """Salva os dados na planilha do Google"""
+    try:
+        # Define o escopo de acesso (Drive e Sheets)
+        scopes = [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive"
+        ]
+        
+        # Pega as credenciais do Cofre do Streamlit
+        credentials = Credentials.from_service_account_info(
+            st.secrets["gcp_service_account"],
+            scopes=scopes
+        )
+        
+        # Conecta
+        gc = gspread.authorize(credentials)
+        
+        # Abre a planilha (TEM QUE SER O NOME EXATO QUE VOCÊ CRIOU)
+        sh = gc.open("Banco de Curriculos") 
+        worksheet = sh.sheet1
+        
+        # Adiciona a linha
+        dados = [str(datetime.now()), vaga[:50], status, nota]
+        worksheet.append_row(dados)
+        return True
+    except Exception as e:
+        st.error(f"Erro ao salvar no Sheets: {e}")
+        return False
 
 # --- FUNÇÕES UTILITÁRIAS ---
 def extrair_texto_pdf(arquivo):
-    """Lê o arquivo PDF e transforma em texto puro"""
     pdf_reader = PyPDF2.PdfReader(arquivo)
     texto = ""
     for page in pdf_reader.pages:
         texto += page.extract_text()
     return texto
 
-def chamar_ia(prompt_sistema, prompt_usuario, chave):
-    """Envia os dados para o GPT"""
-    client = OpenAI(api_key=chave)
+def chamar_ia(prompt_sistema, prompt_usuario):
+    # Pega a chave do Cofre automaticamente
+    api_key = st.secrets[""] 
+    client = OpenAI(api_key=api_key)
+    
     response = client.chat.completions.create(
-        model="gpt-4o", # Ou gpt-3.5-turbo
+        model="gpt-4o", 
         messages=[
             {"role": "system", "content": prompt_sistema},
             {"role": "user", "content": prompt_usuario}
@@ -40,7 +64,7 @@ def chamar_ia(prompt_sistema, prompt_usuario, chave):
     )
     return response.choices[0].message.content
 
-# --- SEU PROMPT MESTRE (O SEGREDO) ---
+# --- SEU PROMPT MESTRE ---
 SYSTEM_PROMPT = """
 Você é um Parceiro de Carreira e Recrutador Sênior. 
 Sua prioridade é ser empático, claro e direto (sem "robobês").
@@ -66,62 +90,42 @@ Gere o currículo focado em passar no ATS.
 - Formatação limpa (Markdown), pronta para copiar.
 """
 
-# --- INTERFACE PRINCIPAL ---
-
+# --- INTERFACE ---
 col1, col2 = st.columns(2)
-
 with col1:
-    st.subheader("1. Seu Currículo (PDF)")
-    uploaded_file = st.file_uploader("Faça upload do PDF", type="pdf")
-
+    uploaded_file = st.file_uploader("Seu Currículo (PDF)", type="pdf")
 with col2:
-    st.subheader("2. Descrição da Vaga")
-    vaga_text = st.text_area("Cole a descrição completa aqui", height=200)
+    vaga_text = st.text_area("Descrição da Vaga", height=200)
 
-# Inicializa o estado da sessão (memória temporária do site)
 if "analise_feita" not in st.session_state:
     st.session_state.analise_feita = False
-if "texto_cv" not in st.session_state:
-    st.session_state.texto_cv = ""
 
-# --- BOTÃO DE ANÁLISE ---
-if st.button("🔍 Analisar Aderência"):
-    if not api_key:
-        st.error("Por favor, insira a API Key na barra lateral.")
-    elif not uploaded_file or not vaga_text:
-        st.warning("Por favor, anexe o currículo e a descrição da vaga.")
-    else:
-        with st.spinner("Lendo currículo e comparando com a vaga..."):
-            # 1. Extrair texto
+# BOTÃO 1: ANALISAR
+if st.button("🔍 Analisar"):
+    if uploaded_file and vaga_text:
+        with st.spinner("Analisando..."):
             texto_cv = extrair_texto_pdf(uploaded_file)
-            st.session_state.texto_cv = texto_cv # Guarda na memória
+            st.session_state.texto_cv = texto_cv
+            st.session_state.vaga_original = vaga_text
             
-            # 2. Montar o pedido para a IA
-            user_message = f"CURRÍCULO:\n{texto_cv}\n\nVAGA:\n{vaga_text}"
+            # Monta o prompt
+            msg = f"CV: {texto_cv}\n\nVaga: {vaga_text}"
+            resultado = chamar_ia(SYSTEM_PROMPT, msg)
             
-            # 3. Chamar a IA
-            resultado = chamar_ia(SYSTEM_PROMPT, user_message, api_key)
-            
-            # 4. Mostrar resultado
             st.session_state.analise_resultado = resultado
             st.session_state.analise_feita = True
-            st.session_state.vaga_original = vaga_text # Guarda para a fase 2
+            
+            # Salva no Sheets
+            salvar_no_sheets(vaga_text, "N/A", "Analisado - Fase 1")
+            st.toast("Análise salva no banco de dados!")
 
-# --- EXIBIÇÃO DO RESULTADO FASE 1 ---
+# EXIBIÇÃO E BOTÃO 2
 if st.session_state.analise_feita:
-    st.markdown("---")
-    st.subheader("💬 Feedback do Parceiro")
     st.write(st.session_state.analise_resultado)
     
-    # --- BOTÃO DE OTIMIZAÇÃO (FASE 2) ---
-    st.markdown("---")
-    st.info("Gostou da análise? Quer gerar o documento final?")
-    
-    if st.button("✨ Sim, gerar Currículo Otimizado ATS"):
-        with st.spinner("Reescrevendo seu currículo com as palavras-chave..."):
-            
-            # Monta o contexto para a IA lembrar do que leu
-            contexto_fase_2 = f"""
+    if st.button("✨ Gerar Currículo Otimizado"):
+        with st.spinner("Escrevendo..."):
+            ctx = f"""
             Contexto Anterior:
             O currículo original era: {st.session_state.texto_cv}
             A vaga era: {st.session_state.vaga_original}
@@ -130,21 +134,9 @@ if st.session_state.analise_feita:
             Ação:
             {OPTIMIZATION_INSTRUCTION}
             """
+            final = chamar_ia(SYSTEM_PROMPT, ctx)
+            st.write(final)
             
-            # Chama a IA novamente
-            resultado_final = chamar_ia(SYSTEM_PROMPT, contexto_fase_2, api_key)
-            
-            st.success("Currículo Gerado!")
-            st.text_area("Copie seu novo CV abaixo:", value=resultado_final, height=600)
-            
-            # --- ÁREA DE APRENDIZADO (SALVAR DADOS) ---
-            # Aqui simulamos o salvamento para você "aprender"
-            import csv
-            from datetime import datetime
-            
-            # Salva num arquivo CSV local chamado "banco_de_curriculos.csv"
-            dados = [datetime.now(), st.session_state.vaga_original[:50], "Processado"]
-            with open('banco_de_curriculos.csv', 'a', newline='', encoding='utf-8') as f:
-                writer = csv.writer(f)
-                writer.writerow(dados)
-            st.toast("Dados salvos no seu banco de aprendizado!")
+            # Salva a segunda etapa no Sheets
+            salvar_no_sheets(st.session_state.vaga_original, "100", "Gerado CV Novo")
+            st.success("Salvo e Gerado!")
