@@ -51,7 +51,7 @@ def extrair_texto_pdf(arquivo):
 
 def chamar_ia(prompt_sistema, prompt_usuario):
     # Pega a chave do Cofre automaticamente
-    api_key = st.secrets[""] 
+    api_key = st.secrets["OPENAI_API_KEY"]
     client = OpenAI(api_key=api_key)
     
     response = client.chat.completions.create(
@@ -140,3 +140,4 @@ if st.session_state.analise_feita:
             # Salva a segunda etapa no Sheets
             salvar_no_sheets(st.session_state.vaga_original, "100", "Gerado CV Novo")
             st.success("Salvo e Gerado!")
+
