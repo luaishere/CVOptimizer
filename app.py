@@ -13,7 +13,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# ---------------- CSS ----------------
+# ---------------- CSS (VISUAL) ----------------
 st.markdown("""
 <style>
     .stApp { background-color: #0E1117; color: #FAFAFA; }
@@ -79,8 +79,8 @@ st.markdown("""
 # ---------------- IA ----------------
 try:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-except Exception:
-    st.error("Erro ao carregar a chave da IA.")
+except Exception as e:
+    st.error(f"Erro ao carregar a chave da IA: {e}")
     st.stop()
 
 # ---------------- FUNÇÕES ----------------
@@ -92,38 +92,55 @@ def extrair_texto_pdf(arquivo):
     return texto
 
 def extrair_nota(texto):
-    match = re.search(r'Minha Nota:\s*(\d+)%', texto)
+    # Tenta achar "Minha Nota: X%" ou variações
+    match = re.search(r'(?:Nota|Minha Nota):?\s*\*?(\d+)', texto, re.IGNORECASE)
     return int(match.group(1)) if match else 0
 
-def salvar_no_sheets(email, vaga, nota, status):
+def salvar_no_sheets(email, nota, vaga, cv_original, analise, cv_otimizado=""):
+    """
+    Salva TUDO: Dados do usuário, textos completos e resultados.
+    Ordem das Colunas: Data | Email | Nota | Vaga | CV Original | Análise | CV Otimizado
+    """
     try:
-        scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+        scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
         creds = Credentials.from_service_account_info(
             st.secrets["gcp_service_account"], scopes=scopes
         )
         gc = gspread.authorize(creds)
+        
+        # Abre a planilha (certifique-se que o nome é exato)
         sh = gc.open("Banco de Curriculos")
         sheet = sh.sheet1
 
-        sheet.append_row([
-            str(datetime.now()),
-            email,
-            vaga[:120],
-            status,
-            nota
-        ])
-    except:
-        pass
+        # Prepara a linha de dados
+        dados_para_salvar = [
+            str(datetime.now()),     # Data
+            email,                   # Email
+            f"{nota}%",              # Nota
+            vaga,                    # Vaga COMPLETA (sem cortes)
+            cv_original,             # Texto do CV Original (O "Antes")
+            analise,                 # O que a IA pensou
+            cv_otimizado             # O CV Novo (O "Depois") - pode vir vazio na 1ª etapa
+        ]
+        
+        sheet.append_row(dados_para_salvar)
+        return True
+        
+    except Exception as e:
+        # Imprime o erro no console do servidor para você ver o que houve
+        print(f"ERRO CRÍTICO AO SALVAR: {e}")
+        return str(e) # Retorna o erro para exibir na tela se precisar
 
 def chamar_ia(prompt_sistema, dados):
-    model = genai.GenerativeModel("gemini-2.5-flash")
+    # Usando o modelo com mais limite gratuito
+    model = genai.GenerativeModel("gemini-2.0-flash")
     prompt = f"{prompt_sistema}\n\n---\n{dados}"
     return model.generate_content(prompt).text
 
 # ---------------- PROMPTS ----------------
 SYSTEM_PROMPT = """
 Analise o currículo e a vaga informada.
-Retorne:
+Retorne APENAS nesta estrutura:
 1. Pontos fortes do currículo
 2. Pontos de atenção
 3. Minha Nota: X%
@@ -163,18 +180,32 @@ if st.button("Ver como meu currículo se sai nessa vaga"):
         st.warning("Preencha todas as informações para continuar.")
     else:
         with st.spinner("Analisando seu currículo..."):
-            texto_cv = extrair_texto_pdf(pdf)
-            resposta = chamar_ia(
-                SYSTEM_PROMPT,
-                f"CURRÍCULO:\n{texto_cv}\n\nVAGA:\n{vaga}"
-            )
-            st.session_state.resultado = resposta
-            st.session_state.texto_cv = texto_cv
-            st.session_state.vaga = vaga
-            st.session_state.email = email
-
-            nota = extrair_nota(resposta)
-            salvar_no_sheets(email, vaga, nota, "Análise realizada")
+            try:
+                texto_cv = extrair_texto_pdf(pdf)
+                
+                # Chamada para a IA
+                resposta = chamar_ia(
+                    SYSTEM_PROMPT,
+                    f"CURRÍCULO:\n{texto_cv}\n\nVAGA:\n{vaga}"
+                )
+                
+                # Salvar na sessão
+                st.session_state.resultado = resposta
+                st.session_state.texto_cv = texto_cv
+                st.session_state.vaga = vaga
+                st.session_state.email = email
+                
+                # Extrair nota
+                nota = extrair_nota(resposta)
+                
+                # Tenta salvar
+                salvou = salvar_no_sheets(email, nota, vaga, texto_cv, resposta, "")
+                
+                if salvou != True:
+                    st.error(f"Atenção: A análise foi feita, mas deu erro ao salvar no banco: {salvou}")
+                
+            except Exception as e:
+                st.error(f"Ocorreu um erro técnico: {e}")
 
 # ---------------- RESULTADO ----------------
 if st.session_state.resultado:
@@ -182,15 +213,18 @@ if st.session_state.resultado:
     st.subheader("📊 Resultado da análise")
 
     nota = extrair_nota(st.session_state.resultado)
+    
+    # Barra de progresso visual
     st.progress(nota / 100)
     st.caption(f"{nota}% de compatibilidade com a vaga")
 
+    # Gráfico simples
     dados = pd.DataFrame({
         "Aspecto": ["Experiência", "Habilidades", "Clareza", "Aderência à vaga"],
         "Pontuação": [
             max(nota - 10, 0),
             nota,
-            max(nota - 15, 0),
+            max(nota - 5, 0),
             nota
         ]
     })
@@ -202,19 +236,25 @@ if st.session_state.resultado:
     st.markdown("---")
     if st.button("Gerar versão melhorada do meu currículo"):
         with st.spinner("Gerando currículo otimizado..."):
-            novo_cv = chamar_ia(
-                OPTIMIZATION_PROMPT,
-                f"{st.session_state.texto_cv}\n\n{st.session_state.resultado}"
-            )
-            st.markdown("### ✨ Currículo sugerido")
-            st.write(novo_cv)
+            try:
+                novo_cv = chamar_ia(
+                    OPTIMIZATION_PROMPT,
+                    f"{st.session_state.texto_cv}\n\n{st.session_state.resultado}"
+                )
+                st.markdown("### ✨ Currículo sugerido")
+                st.write(novo_cv)
 
-            salvar_no_sheets(
-                st.session_state.email,
-                st.session_state.vaga,
-                100,
-                "Currículo gerado"
-            )
+                # Salva novamente, agora COM o currículo novo preenchido
+                salvar_no_sheets(
+                    st.session_state.email,
+                    100, # Nota simbólica de conclusão
+                    st.session_state.vaga,
+                    st.session_state.texto_cv,
+                    st.session_state.resultado,
+                    novo_cv # <--- AQUI VAI O CURRÍCULO NOVO
+                )
 
-            st.success("Currículo gerado com sucesso!")
-            st.balloons()
+                st.success("Currículo gerado e salvo com sucesso!")
+                st.balloons()
+            except Exception as e:
+                st.error(f"Erro ao gerar: {e}")
