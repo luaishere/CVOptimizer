@@ -1,5 +1,5 @@
 streamlit
-openai
+google-generativeai
 pypdf2
 gspread
 google-auth
