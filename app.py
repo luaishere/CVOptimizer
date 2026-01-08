@@ -9,74 +9,98 @@ from datetime import datetime
 
 # ---------------- CONFIGURAÇÃO DA PÁGINA ----------------
 st.set_page_config(
-    page_title="Análise de Currículo - Luana",
+    page_title="Currículo vs Vaga - Luana",
+    page_icon="🎯",
     layout="wide"
 )
 
-# ---------------- CSS (VISUAL DARK MODE) ----------------
+# ---------------- CSS (VISUAL AMIGÁVEL & MODERNO) ----------------
 st.markdown("""
 <style>
-    .stApp { background-color: #0E1117; color: #FAFAFA; }
-    h1, h2, h3 { color: #FAFAFA !important; font-family: 'Helvetica Neue', sans-serif; }
-
-    .info-box {
-        background-color: #1F2937;
-        padding: 24px;
-        border-radius: 12px;
-        border-left: 5px solid #7C3AED;
-        margin-bottom: 24px;
+    /* Fundo Escuro Confortável */
+    .stApp { background-color: #0E1117; color: #E0E0E0; }
+    
+    /* Títulos com destaque */
+    h1 { color: #A78BFA !important; font-family: 'Helvetica Neue', sans-serif; font-weight: 800; }
+    h2, h3 { color: #F3F4F6 !important; }
+    
+    /* Caixa de Explicação (Hero Section) */
+    .hero-box {
+        background: linear-gradient(90deg, #1F2937 0%, #111827 100%);
+        padding: 30px;
+        border-radius: 15px;
+        border-left: 6px solid #8B5CF6; /* Roxo suave */
+        margin-bottom: 30px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
     }
+    .hero-box h3 { color: #C4B5FD !important; margin-top: 0; }
+    .hero-box p { font-size: 1.1rem; line-height: 1.6; }
 
+    /* Campos de Entrada */
     .stTextInput input, .stTextArea textarea { 
         background-color: #1F2937 !important; 
         color: #FFFFFF !important; 
         border: 1px solid #374151; 
-    }
-
-    [data-testid="stFileUploader"] {
-        background-color: #1F2937;
-        border: 1px dashed #7C3AED;
-        padding: 10px;
         border-radius: 8px;
     }
-
-    .stButton > button { 
-        background-color: #7C3AED; 
-        color: white !important; 
-        width: 100%;
-        font-size: 17px;
-        padding: 0.9rem;
-        border-radius: 10px; 
-        border: none; 
-        font-weight: 600; 
+    
+    /* Upload */
+    [data-testid="stFileUploader"] {
+        background-color: #1F2937;
+        border: 2px dashed #6D28D9;
+        padding: 20px;
+        border-radius: 12px;
+        text-align: center;
     }
 
-    .stButton > button:hover { background-color: #6D28D9; }
+    /* Botões Principais */
+    .stButton > button { 
+        background: linear-gradient(90deg, #7C3AED 0%, #6D28D9 100%);
+        color: white !important; 
+        width: 100%;
+        font-size: 18px;
+        padding: 1rem;
+        border-radius: 12px; 
+        border: none; 
+        font-weight: 700; 
+        box-shadow: 0 4px 14px 0 rgba(124, 58, 237, 0.39);
+        transition: all 0.2s ease-in-out;
+    }
+    .stButton > button:hover { 
+        transform: scale(1.02);
+        box-shadow: 0 6px 20px rgba(124, 58, 237, 0.23);
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------- HEADER ----------------
-st.title("🚀 Analisador & Otimizador de Currículos")
-st.caption("Inteligência Artificial para alinhar seu perfil às vagas do mercado.")
+# ---------------- HEADER & COPYWRITING ----------------
+st.title("🎯 Seu Currículo passa no filtro?")
+st.caption("Ferramenta gratuita para profissionais em busca de recolocação.")
 
 st.markdown("""
-<div class="info-box">
-    <h3>Como funciona?</h3>
+<div class="hero-box">
+    <h3>Não deixe um robô eliminar sua chance</h3>
     <p>
-        Esta ferramenta lê seu PDF e a descrição da vaga para simular a análise de um recrutador.
-        Você receberá uma nota de compatibilidade, pontos de atenção e poderá gerar uma nova versão do currículo otimizada para passar nos filtros (ATS).
+        Hoje em dia, a maioria das empresas usa sistemas automáticos (IA) para ler currículos antes mesmo de um humano ver. 
+        Se as palavras certas não estiverem lá, você é reprovado automaticamente.
+    </p>
+    <p>
+        <b>Como te ajudamos:</b>
+        <br>1. Nossa IA lê seu currículo e a vaga como se fosse o recrutador.
+        <br>2. Te mostramos exatamente o que está faltando.
+        <br>3. Criamos uma nova versão do seu currículo ajustada para passar nessa vaga específica.
     </p>
 </div>
 """, unsafe_allow_html=True)
 
-# ---------------- IA ----------------
+# ---------------- CONFIGURAÇÃO TÉCNICA ----------------
 try:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 except Exception as e:
-    st.error(f"Erro ao carregar a chave da IA: {e}")
+    st.error(f"Erro de conexão. Avise o administrador.")
     st.stop()
 
-# ---------------- FUNÇÕES ----------------
+# ---------------- FUNÇÕES DE BACKEND ----------------
 def extrair_texto_pdf(arquivo):
     reader = PyPDF2.PdfReader(arquivo)
     texto = ""
@@ -85,15 +109,10 @@ def extrair_texto_pdf(arquivo):
     return texto
 
 def extrair_nota(texto):
-    # Procura por "Nota: 90%" ou "Nota: 90" no texto
     match = re.search(r'(?:Nota|Minha Nota):?\s*\*?(\d+)', texto, re.IGNORECASE)
     return int(match.group(1)) if match else 0
 
 def salvar_no_sheets(email, nota, vaga, cv_original, analise, cv_otimizado=""):
-    """
-    Salva o histórico completo no Google Sheets.
-    Ordem: Data | Email | Nota | Vaga | CV Original | Análise | CV Otimizado
-    """
     try:
         scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
         creds = Credentials.from_service_account_info(
@@ -103,132 +122,138 @@ def salvar_no_sheets(email, nota, vaga, cv_original, analise, cv_otimizado=""):
         sh = gc.open("Banco de Curriculos")
         sheet = sh.sheet1
 
-        # Dados completos para treino futuro da IA
         dados = [
-            str(datetime.now()),     # Data
-            email,                   # Email
-            f"{nota}%",              # Nota formatada
-            vaga,                    # Texto completo da vaga
-            cv_original,             # Texto completo do CV antigo
-            analise,                 # O feedback da IA
-            cv_otimizado             # O novo CV (vazio na primeira etapa)
+            str(datetime.now()),
+            email,
+            f"{nota}%",
+            vaga,
+            cv_original,
+            analise,
+            cv_otimizado
         ]
-
         sheet.append_row(dados)
         return True
     except Exception as e:
-        print(f"ERRO PLANILHA: {e}")
-        return str(e)
+        print(f"Erro ao salvar: {e}")
+        return False
 
 def chamar_ia(prompt_sistema, dados):
-    # --- MUDANÇA ESTRATÉGICA: Usando o ALIAS 'latest' ---
-    # Isso pega a versão mais estável disponível para sua conta, evitando erro de cota
+    # Usando o modelo 'latest' para evitar erros de limite
     model = genai.GenerativeModel("gemini-flash-latest")
-    
-    prompt = f"{prompt_sistema}\n\n---\nDADOS:\n{dados}"
+    prompt = f"{prompt_sistema}\n\n---\nINFORMAÇÕES:\n{dados}"
     return model.generate_content(prompt).text
 
-# ---------------- PROMPTS ----------------
+# ---------------- PROMPTS (PERSONALIDADE DA IA) ----------------
+# Aqui definimos o tom de voz da IA: Empática, Mentora, Encorajadora.
 SYSTEM_PROMPT = """
-Você é um Especialista em Carreiras e Recrutamento Tech.
-Analise o currículo e a vaga.
-Saída obrigatória (Markdown):
-1. **Pontos Fortes:** (O que conecta com a vaga)
-2. **Gaps/Atenção:** (O que falta ou está fraco)
+Você é uma Mentora de Carreira experiente e empática, especializada em recolocação profissional.
+Seu objetivo é ajudar candidatos (júniors ou em transição) a passarem pelos filtros de IA dos recrutadores.
+
+Analise o currículo e a vaga. Fale diretamente com o candidato (use "você").
+Estrutura da resposta (use Markdown):
+
+1. **Onde você brilha ✨:** (Liste o que está ótimo e conecta com a vaga)
+2. **Cuidado com isso ⚠️:** (O que falta, gaps de palavras-chave ou erros que podem reprovar no sistema. Seja gentil mas honesta)
 3. **Minha Nota:** X% (Apenas o número de 0 a 100)
-4. **Veredito:** (Sugestão de ação)
+4. **Veredito da Mentora:** (Vale a pena aplicar? O que precisa mudar urgente?)
+
+Seja clara, evite jargões complexos de RH sem explicar.
 """
 
 OPTIMIZATION_PROMPT = """
-Atue como um redator de currículos especialista em ATS (Applicant Tracking Systems).
-Reescreva o currículo fornecido para maximizar a aderência à vaga, usando as palavras-chave encontradas.
-Mantenha a verdade, mas melhore a apresentação, verbos de ação e foco em resultados.
-Saída: Apenas o texto do novo currículo em Markdown.
+Atue como uma Especialista em Currículos para Sistemas ATS.
+Sua missão: Reescrever o currículo do candidato para aumentar a chance de entrevista nesta vaga específica.
+
+Regras:
+- Mantenha a veracidade (não invente experiências), mas mude a forma de escrever.
+- Use as palavras-chave exatas da descrição da vaga.
+- Use verbos de ação fortes (Liderei, Criei, Organizei).
+- Foco em resultados.
+- Adicione um breve Resumo Profissional no topo alinhado à vaga.
+
+Saída: Apenas o texto do currículo formatado, pronto para copiar.
 """
 
 # ---------------- FORMULÁRIO ----------------
 col1, col2 = st.columns(2)
 
 with col1:
-    st.subheader("1. Seus Dados")
-    email = st.text_input("E-mail para contato")
-    pdf = st.file_uploader("Currículo (PDF)", type="pdf")
+    st.subheader("1. Quem é você?")
+    email = st.text_input("Seu melhor e-mail", placeholder="ex: joao@gmail.com")
+    pdf = st.file_uploader("Seu Currículo (PDF)", type="pdf", help="Pode ser o currículo que você já usa.")
 
 with col2:
-    st.subheader("2. A Vaga")
-    vaga = st.text_area("Descrição da Vaga", height=260, placeholder="Cole aqui os requisitos...")
+    st.subheader("2. Qual a vaga dos sonhos?")
+    vaga = st.text_area("Descrição da Vaga", height=260, placeholder="Cole aqui tudo que estava escrito no anúncio da vaga (Requisitos, Responsabilidades, etc)...")
 
 st.markdown("---")
-aceite = st.checkbox("Concordo em compartilhar os dados para análise e aprimoramento da ferramenta.")
+aceite = st.checkbox("Aceito compartilhar meus dados para gerar a análise e receber dicas de carreira futuramente.")
 
 # ---------------- ESTADO ----------------
 if "resultado" not in st.session_state:
     st.session_state.resultado = None
 
-# ---------------- BOTÃO 1: ANALISAR ----------------
-if st.button("🔍 Analisar Compatibilidade"):
+# ---------------- BOTÃO 1 ----------------
+if st.button("🚀 Descobrir minhas chances"):
     if not aceite:
-        st.warning("⚠️ Você precisa aceitar o compartilhamento de dados para usar a ferramenta.")
+        st.warning("⚠️ Precisamos do seu aceite para prosseguir.")
     elif not email or not pdf or not vaga:
-        st.warning("⚠️ Preencha e-mail, currículo e vaga.")
+        st.warning("⚠️ Opa, faltou preencher alguma coisa acima!")
     else:
-        with st.spinner("Lendo currículo e comparando com a vaga..."):
+        with st.spinner("Lendo cada detalhe do seu perfil..."):
             try:
                 texto_cv = extrair_texto_pdf(pdf)
                 
-                # Chama a IA
-                resposta = chamar_ia(SYSTEM_PROMPT, f"CV: {texto_cv}\nVaga: {vaga}")
+                # IA Analisa
+                resposta = chamar_ia(SYSTEM_PROMPT, f"CURRÍCULO:\n{texto_cv}\n\nVAGA ALVO:\n{vaga}")
                 
-                # Guarda na memória do app
                 st.session_state.resultado = resposta
                 st.session_state.texto_cv = texto_cv
                 st.session_state.vaga = vaga
                 st.session_state.email = email
                 
-                # Extrai nota e salva a primeira etapa
                 nota = extrair_nota(resposta)
-                salvou = salvar_no_sheets(email, nota, vaga, texto_cv, resposta, "")
+                salvar_no_sheets(email, nota, vaga, texto_cv, resposta, "")
                 
-                if salvou == True:
-                    st.toast("Análise salva com sucesso!")
-                else:
-                    st.error(f"Erro ao salvar na planilha: {salvou}")
-                    
             except Exception as e:
-                st.error(f"Erro técnico na IA: {e}")
+                st.error(f"Erro técnico: {e}")
 
-# ---------------- RESULTADOS E BOTÃO 2 ----------------
+# ---------------- RESULTADOS ----------------
 if st.session_state.resultado:
     st.markdown("---")
-    st.subheader("📊 Resultado da Análise")
+    st.subheader("📊 Seu Diagnóstico")
     
     nota = extrair_nota(st.session_state.resultado)
-    st.progress(nota / 100)
-    st.caption(f"Compatibilidade: {nota}%")
     
-    # Gráfico
-    dados_grafico = pd.DataFrame({
-        "Critério": ["Experiência", "Palavras-Chave", "Formatação", "Geral"],
-        "Nota": [max(nota-5, 0), nota, max(nota-10, 0), nota]
-    })
-    st.bar_chart(dados_grafico.set_index("Critério"))
+    # Visual da Nota
+    col_nota, col_texto = st.columns([1, 3])
+    with col_nota:
+        st.metric(label="Compatibilidade Atual", value=f"{nota}%")
+    with col_texto:
+        if nota > 75:
+            st.success("Muito bom! Você tem grandes chances, mas podemos refinar.")
+        elif nota > 50:
+            st.warning("Tem potencial, mas o robô pode te barrar. Vamos ajustar?")
+        else:
+            st.error("Atenção: Seu currículo atual pode não passar. Precisamos de uma reforma.")
 
     st.write(st.session_state.resultado)
     
     st.markdown("---")
-    if st.button("✨ Gerar Currículo Otimizado (Versão ATS)"):
-        with st.spinner("Reescrevendo seu currículo..."):
+    st.info("💡 **Dica:** A IA pode reescrever seu currículo agora mesmo usando as palavras exatas que o robô quer ler.")
+    
+    if st.button("✨ Gerar Currículo Otimizado (Grátis)"):
+        with st.spinner("Reescrevendo seu currículo para passar na vaga..."):
             try:
-                # Chama a IA para a segunda tarefa
                 novo_cv = chamar_ia(
                     OPTIMIZATION_PROMPT, 
-                    f"CV ORIGINAL:\n{st.session_state.texto_cv}\n\nANÁLISE ANTERIOR:\n{st.session_state.resultado}"
+                    f"CV ORIGINAL:\n{st.session_state.texto_cv}\n\nDIAGNÓSTICO:\n{st.session_state.resultado}"
                 )
                 
-                st.markdown("### 📝 Novo Currículo Sugerido")
-                st.code(novo_cv, language="markdown") # Mostra em caixa de código para fácil cópia
+                st.subheader("📝 Sua Nova Versão")
+                st.caption("Copie o texto abaixo e cole no Word/Docs para salvar seu novo PDF.")
+                st.code(novo_cv, language="markdown")
                 
-                # Salva a segunda etapa (agora preenchendo a coluna final)
                 salvar_no_sheets(
                     st.session_state.email, 
                     100, 
@@ -238,7 +263,7 @@ if st.session_state.resultado:
                     novo_cv
                 )
                 
-                st.success("Currículo gerado e salvo no banco de dados!")
                 st.balloons()
+                st.success("Prontinho! Sucesso na aplicação! 🍀")
             except Exception as e:
-                st.error(f"Erro ao gerar currículo: {e}")
+                st.error(f"Erro ao gerar: {e}")
